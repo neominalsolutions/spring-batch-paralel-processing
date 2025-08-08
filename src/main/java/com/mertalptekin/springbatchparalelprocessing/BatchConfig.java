@@ -16,6 +16,8 @@ import javax.sql.DataSource;
 public class BatchConfig {
 
 
+
+
     @Bean
     public JobRepository jobRepository(DataSource dataSource) throws Exception {
         JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();

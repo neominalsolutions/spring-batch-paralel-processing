@@ -40,5 +40,36 @@ public class BatchController {
         return ResponseEntity.ok("Simple Split Job has been started.");
     }
 
+    @Autowired
+    @Qualifier("simpleCustomerJob")
+    private Job simpleCustomerJob;
+
+    @PostMapping("/simpleCustomerJob")
+    public ResponseEntity<String> runSimpleCustomerJob() throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
+
+        var params = new JobParametersBuilder().addString("UUID", UUID.randomUUID().toString()).toJobParameters();
+
+        jobLauncher.run(simpleCustomerJob,params);
+
+        // Logic to run the simple split job
+        return ResponseEntity.ok("Simple Split Job has been started.");
+    }
+
+
+    @Autowired
+    @Qualifier("simplePartitionJob")
+    private Job simplePartitionJob;
+
+    @PostMapping("/runSimplePartitionJob")
+    public ResponseEntity<String> runSimplePartitionJob() throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
+
+        var params = new JobParametersBuilder().addString("UUID", UUID.randomUUID().toString()).toJobParameters();
+
+        jobLauncher.run(simplePartitionJob,params);
+
+        // Logic to run the simple split job
+        return ResponseEntity.ok("Simple Split Job has been started.");
+    }
+
 
 }
