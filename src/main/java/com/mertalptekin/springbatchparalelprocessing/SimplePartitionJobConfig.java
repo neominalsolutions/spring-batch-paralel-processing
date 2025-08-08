@@ -7,18 +7,21 @@ import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.partition.PartitionHandler;
 import org.springframework.batch.core.partition.support.SimplePartitioner;
 import org.springframework.batch.core.partition.support.TaskExecutorPartitionHandler;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.ItemPreparedStatementSetter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.json.JacksonJsonObjectReader;
 import org.springframework.batch.item.json.JsonItemReader;
 import org.springframework.batch.item.json.builder.JsonItemReaderBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -34,11 +37,14 @@ import java.sql.SQLException;
 @Configuration
 public class SimplePartitionJobConfig {
 
+    // @Value("#{stepExecutionContext['partition']}" String partition
 
     @Bean
     @StepScope
-    public JsonItemReader<Customer> jsonItemReader() {
-        return new JsonItemReaderBuilder<Customer>().resource(new ClassPathResource("customers.json")).jsonObjectReader(new JacksonJsonObjectReader<>(Customer.class)).name("customerJsonItemReader").build();
+    public JsonItemReader<Customer> jsonItemReader(@Value("#{stepExecutionContext['partition']}") String partition) {
+        // hangi dosyayı partition bazlı okucağını belirledik.
+       String fileName = partition + "_customers.json";
+        return new JsonItemReaderBuilder<Customer>().resource(new ClassPathResource(fileName)).jsonObjectReader(new JacksonJsonObjectReader<>(Customer.class)).name("customerJsonItemReader").build();
     }
     @Bean
     public ItemProcessor<Customer, Customer> itemProcessor() {
@@ -51,14 +57,13 @@ public class SimplePartitionJobConfig {
     public ItemWriter<Customer> itemWriter(DataSource dataSource) {
         JdbcBatchItemWriter<Customer> writer = new JdbcBatchItemWriter<>();
         writer.setDataSource(dataSource);
-        writer.setSql("insert into customer (id,firstName, lastName, birthYear) values (?,?,?,?)");
+        writer.setSql("insert into customer (firstName, lastName, birthYear) values (?,?,?)");
         writer.setItemPreparedStatementSetter(new ItemPreparedStatementSetter<Customer>() {
             @Override
             public void setValues(Customer item, PreparedStatement ps) throws SQLException {
-                ps.setInt(1, item.getId());
-                ps.setString(2, item.getFirstName());
-                ps.setString(3, item.getLastName());
-                ps.setInt(4, item.getBirthYear());
+                ps.setString(1, item.getFirstName());
+                ps.setString(2, item.getLastName());
+                ps.setInt(3, item.getBirthYear());
             }
         });
         return writer;
@@ -69,6 +74,8 @@ public class SimplePartitionJobConfig {
     public TaskExecutor taskExecutor() {
         SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
         taskExecutor.setThreadNamePrefix("taskExecutor-partition-");
+        // taskExecutor.setConcurrencyLimit(2);
+
         return taskExecutor;
     }
 
@@ -80,16 +87,16 @@ public class SimplePartitionJobConfig {
     public PartitionHandler partitionerHandler(Step mainStep) {
         TaskExecutorPartitionHandler partitionHandler = new TaskExecutorPartitionHandler();
         partitionHandler.setTaskExecutor(taskExecutor()); // Paralel çalıştırmak için taskExecutor kullanılır
-        partitionHandler.setGridSize(4); // Partisyon sayısı, 25li olarak veriyi paralelde farklı threadlerde işleyeceğiz.
+        partitionHandler.setGridSize(2);
         partitionHandler.setStep(mainStep);
 
         return partitionHandler;
     }
 
     @Bean
-    public Step mainStep(JobRepository jobRepository, PlatformTransactionManager transactionManager,DataSource dataSource) {
+    public Step mainStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, DataSource dataSource, ItemReader itemReader) {
         return new StepBuilder("mainStep",jobRepository).<Customer,Customer>chunk(10,transactionManager)
-                .reader(jsonItemReader())
+                .reader(jsonItemReader(null)) // PartitionedJsonItemReader, JsonItemReader'ı partitionlara ayırır.
                 .processor(itemProcessor())
                 .writer(itemWriter(dataSource))
                 .build();
@@ -100,11 +107,13 @@ public class SimplePartitionJobConfig {
     @Bean
     public Step partitionedStep(JobRepository jobRepository,Step mainStep) {
 
-        SimplePartitioner partioner = new SimplePartitioner();
+        CustomPartitioner partitioner = new CustomPartitioner();
+        // SimplePartitioner partitioner = new SimplePartitioner();
+
         // partition hanfler kullanarak mainStep ismindeki step'i partionlara ayır.
         return  new StepBuilder("partitionStep",jobRepository)
-                .partitioner("mainStep",partioner) // veritabanında hangi step ismi ile partion yapılyor.
-                //.step(mainStep) // bu setepi partionlara böl
+                .partitioner("mainStep",partitioner) // veritabanında hangi step ismi ile partion yapılyor.
+                .step(mainStep) // bu setepi partionlara böl
                 .partitionHandler(partitionerHandler(mainStep))
                 .build();
     }
@@ -113,6 +122,7 @@ public class SimplePartitionJobConfig {
     @Bean(name = "simplePartitionJob")
     public Job simplePartitionJob(JobRepository jobRepository,Step partitionedStep) {
         return new JobBuilder("simplePartitionJob", jobRepository)
+                .incrementer(new RunIdIncrementer())
                 .start(partitionedStep)
                 .build();
     }
@@ -127,14 +137,6 @@ public class SimplePartitionJobConfig {
     }
 
 
-
     // Other beans and configurations can be added here as needed
-
-
-
-
-
-
-
 
 }

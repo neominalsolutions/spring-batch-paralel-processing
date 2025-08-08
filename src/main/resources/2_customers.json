@@ -1,6 +1,4 @@
 [
-  { "id": 1, "firstName": "John", "lastName": "Doe", "birthYear": 1985},
-  { "id": 2, "firstName": "Jane", "lastName": "Doe", "birthYear": 1990 },
   { "id": 3, "firstName": "Alice", "lastName": "Smith", "birthYear": 1983 },
   { "id": 4, "firstName": "Bob", "lastName": "Johnson", "birthYear": 1987 }
 ]
