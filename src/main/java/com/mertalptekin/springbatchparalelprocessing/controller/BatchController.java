@@ -71,5 +71,20 @@ public class BatchController {
         return ResponseEntity.ok("Simple Split Job has been started.");
     }
 
+    @Autowired
+    @Qualifier("jdbcPagingItemReaderJob")
+    private Job jdbcPagingItemReaderJob;
+
+    @PostMapping("/runJdbcPagingItemReaderJob")
+    public ResponseEntity<String> runJdbcItemReaderJob() throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
+
+        var params = new JobParametersBuilder().addString("UUID", UUID.randomUUID().toString()).toJobParameters();
+
+        jobLauncher.run(jdbcPagingItemReaderJob,params);
+
+        // Logic to run the simple split job
+        return ResponseEntity.ok("JdbcPagingItemReaderJob has been started.");
+    }
+
 
 }

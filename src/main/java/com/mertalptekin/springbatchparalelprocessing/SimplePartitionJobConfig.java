@@ -94,7 +94,7 @@ public class SimplePartitionJobConfig {
     }
 
     @Bean
-    public Step mainStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, DataSource dataSource, ItemReader itemReader) {
+    public Step mainStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, DataSource dataSource) {
         return new StepBuilder("mainStep",jobRepository).<Customer,Customer>chunk(10,transactionManager)
                 .reader(jsonItemReader(null)) // PartitionedJsonItemReader, JsonItemReader'ı partitionlara ayırır.
                 .processor(itemProcessor())
